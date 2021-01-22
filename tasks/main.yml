@@ -1,0 +1,62 @@
+# https://docs.gluster.org/en/latest/Install-Guide/Install/
+# https://wiki.centos.org/SpecialInterestGroup/Storage
+
+- name: Install the repository for packages
+  become: yes
+  yum:
+    state: installed
+    name:
+      - centos-release-gluster
+
+- name: Install packages
+  become: yes
+  yum:
+    state: installed
+    name:
+      - glusterfs-server
+      - glusterfs-fuse
+    enablerepo: powertools
+
+- name: Start glusterd
+  become: yes
+  systemd:
+    state: started
+    enabled: yes
+    name: glusterd
+
+- name: Allow glusterd to communicate
+  become: yes
+  firewalld:
+    state: enabled
+    permanent: yes
+    immediate: yes
+    service: glusterfs
+
+- name: Peer probe
+  become: yes
+  run_once: yes
+  gluster.gluster.gluster_peer:
+    state: present
+    nodes: "{{ansible_play_hosts}}"
+
+- name: Create directory for bricks
+  become: yes
+  file:
+    path: "{{gluster_brick_path}}"
+    state: directory
+
+- name: Create volume
+  become: yes
+  register: created
+  run_once: true
+  gluster.gluster.gluster_volume:
+    state: present
+    name: "{{gluster_vol_name}}"
+    bricks: "{{gluster_brick_path}}"
+    cluster: "{{ansible_play_hosts}}"
+    replicas: "{{gluster_replicas|default(3)}}"
+    rebalance: "{{gluster_rebalance|default('no')}}"
+    start_on_create: "{{gluster_start_on_create|default('yes')}}"
+    options: "{{gluster_options|default({})}}"
+    redundancies: "{{gluster_redudancies|default(0)}}"
+    force: yes
